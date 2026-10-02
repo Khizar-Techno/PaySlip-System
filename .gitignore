@@ -1,0 +1,7 @@
+.env
+__pycache__/
+generated_pdfs/
+*.pyc
+.venv/
+env/
+

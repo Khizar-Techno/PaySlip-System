@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Payslip - {{ payslip.employee_name }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 30px 15px;
+            color: #1c1e21;
+        }
+        .paystub-card {
+            max-width: 820px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 35px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            border: 1px solid #e4e6eb;
+        }
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .company-brand {
+            font-size: 22px;
+            font-weight: 700;
+            color: #0d6efd;
+            letter-spacing: 0.5px;
+        }
+        .confidential-tag {
+            background-color: #e7f1ff;
+            color: #0d6efd;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border: 1px solid #edf2f7;
+        }
+        .meta-item {
+            font-size: 14px;
+        }
+        .meta-item strong {
+            color: #495057;
+            display: inline-block;
+            width: 140px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 14px;
+        }
+        th {
+            background-color: #212529;
+            color: #ffffff;
+            font-weight: 600;
+        }
+        .text-right { text-align: right; }
+        .net-payable {
+            background-color: #198754;
+            color: white;
+            padding: 18px 20px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 30px;
+        }
+        .signature-box {
+            background-color: #fff;
+            border: 2px dashed #ced4da;
+            padding: 25px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .sig-input-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 15px;
+        }
+        .sig-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 15px;
+            outline: none;
+        }
+        .sig-input:focus { border-color: #0d6efd; }
+        .btn-ack {
+            background-color: #0d6efd;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-ack:hover { background-color: #0b5ed7; }
+        .signed-banner {
+            background-color: #d1e7dd;
+            border: 1px solid #badbcc;
+            color: #0f5132;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="paystub-card">
+    <div class="header-row">
+        <div>
+            <div class="company-brand">PAYSLIP ACKNOWLEDGEMENT</div>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">Date: {{ current_date }}</div>
+        </div>
+        <span class="confidential-tag">CONFIDENTIAL</span>
+    </div>
+
+    <div class="meta-grid">
+        <div class="meta-item"><strong>Employee Name:</strong> {{ payslip.employee_name }}</div>
+        <div class="meta-item"><strong>NTID:</strong> {{ payslip.ntid }}</div>
+        <div class="meta-item"><strong>Designation:</strong> {{ payslip.designation or 'N/A' }}</div>
+        <div class="meta-item"><strong>Market:</strong> {{ payslip.market or 'N/A' }}</div>
+        <div class="meta-item"><strong>Payroll Days:</strong> {{ payslip.payroll_days or '-' }}</div>
+        <div class="meta-item"><strong>Total Working Days:</strong> {{ payslip.total_working_days or '-' }}</div>
+    </div>
+
+    <h4 style="margin-bottom: 12px; color: #212529;">Earnings Breakdown</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th class="text-right">Hours/Days</th>
+                <th class="text-right">Rate ($)</th>
+                <th class="text-right">Amount ($)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Base Salary</td>
+                <td class="text-right">-</td>
+                <td class="text-right">-</td>
+                <td class="text-right">${{ "%.2f"|format(payslip.base_salary or 0) }}</td>
+            </tr>
+            <tr>
+                <td>Regular Hours</td>
+                <td class="text-right">{{ payslip.regular_hours or 0 }}</td>
+                <td class="text-right">${{ "%.2f"|format(payslip.hourly_rate or 0) }}</td>
+                <td class="text-right">${{ "%.2f"|format((payslip.regular_hours or 0) * (payslip.hourly_rate or 0)) }}</td>
+            </tr>
+            <tr>
+                <td>Overtime (OT)</td>
+                <td class="text-right">{{ payslip.ot_hours or 0 }}</td>
+                <td class="text-right">${{ "%.2f"|format(payslip.ot_rate or 0) }}</td>
+                <td class="text-right">${{ "%.2f"|format((payslip.ot_hours or 0) * (payslip.ot_rate or 0)) }}</td>
+            </tr>
+            <tr>
+                <td>Commission</td>
+                <td class="text-right">-</td>
+                <td class="text-right">-</td>
+                <td class="text-right">${{ "%.2f"|format(payslip.commission or 0) }}</td>
+            </tr>
+            <tr>
+                <td>Bonus / Add. Pay</td>
+                <td class="text-right">-</td>
+                <td class="text-right">-</td>
+                <td class="text-right">${{ "%.2f"|format((payslip.bonus or 0) + (payslip.additional_pay or 0)) }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="net-payable">
+        <span>Net Salary Payable</span>
+        <span>${{ "%.2f"|format(payslip.net_salary or 0) }}</span>
+    </div>
+
+    <div class="signature-box">
+        <h4 style="margin-top: 0; margin-bottom: 8px;">Employee Digital Acknowledgement</h4>
+        {% if payslip.is_used %}
+            <div class="signed-banner">
+                ✓ <strong>Acknowledged & Signed By:</strong> {{ payslip.signature_text }} <br>
+                <small>Timestamp: {{ payslip.signed_at.strftime('%b %d, %Y - %I:%M %p') }}</small>
+            </div>
+        {% elif admin_view %}
+            <div style="background-color:#fff3cd; border:1px solid #ffe69c; color:#664d03; padding:16px 20px; border-radius:8px; font-size:14px;">
+                ⏳ <strong>Pending — not yet signed by employee.</strong><br>
+                <small>The employee must open their own link to acknowledge and sign; admins can't sign on their behalf.</small>
+            </div>
+        {% else %}
+            <p style="font-size: 13px; color: #6c757d; margin: 0;">Type your full legal name below to sign and lock this payslip record.</p>
+            <div class="sig-input-group">
+                <input type="text" id="sigInput" class="sig-input" placeholder="Type Full Name Here..." required>
+                <button onclick="submitSignature()" class="btn-ack">Acknowledge & Sign</button>
+            </div>
+            <div id="sigStatus" style="margin-top: 10px; font-size: 14px; font-weight: 600;"></div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Mark this payslip as "viewed" only once a real browser actually renders
+// and runs this script — email link-preview crawlers (Outlook/Slack/Teams)
+// fetch the raw HTML but don't execute JS, so they no longer falsely
+// trigger "viewed" status the way the old server-side GET handler did.
+{% if not payslip.is_used and not admin_view %}
+fetch('/api/v1/payslip/mark-viewed/{{ payslip.token }}', { method: 'POST' }).catch(() => {});
+{% endif %}
+
+async function submitSignature() {
+    const sigVal = document.getElementById('sigInput').value.trim();
+    const statusDiv = document.getElementById('sigStatus');
+
+    if (!sigVal) {
+        statusDiv.style.color = '#dc3545';
+        statusDiv.innerHTML = 'Please enter your signature name.';
+        return;
+    }
+
+    statusDiv.style.color = '#0d6efd';
+    statusDiv.innerHTML = 'Submitting signature and generating audit record...';
+
+    try {
+        const resp = await fetch('/api/v1/payslip/sign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: "{{ payslip.token }}", signature_name: sigVal })
+        });
+        const resData = await resp.json();
+
+        if (resp.ok) {
+            statusDiv.style.color = '#198754';
+            statusDiv.innerHTML = resData.pdf_generated
+                ? '✓ Signed successfully! Reloading page...'
+                : '✓ Signed successfully (PDF copy is being retried by admin). Reloading page...';
+            setTimeout(() => { window.location.reload(); }, 1200);
+        } else {
+            statusDiv.style.color = '#dc3545';
+            statusDiv.innerHTML = resData.detail || 'Failed to submit signature.';
+        }
+    } catch (e) {
+        statusDiv.style.color = '#dc3545';
+        statusDiv.innerHTML = 'Network error. Please try again.';
+    }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pymysql
+jinja2
+pandas
+openpyxl
+python-multipart
+weasyprint
+python-dotenv
+boto3

@@ -1,0 +1,46 @@
+USE TechnoUserManagement;
+
+DROP TABLE IF EXISTS user_payslip;
+
+CREATE TABLE user_payslip (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL, -- Exact match with users.id (bigint)
+    ntid VARCHAR(100) NOT NULL,
+    market VARCHAR(50),
+    employee_name VARCHAR(100) NOT NULL,
+    designation VARCHAR(100),
+    weekly_days INT,
+    payroll_days INT,
+    attendance_cycle_start DATE,
+    attendance_cycle_end DATE,
+    pay_cycle_start DATE,
+    pay_cycle_end DATE,
+    total_working_days INT,
+    base_salary DECIMAL(10, 2) DEFAULT 0.00,
+    commission DECIMAL(10, 2) DEFAULT 0.00,
+    bonus DECIMAL(10, 2) DEFAULT 0.00,
+    additional_pay DECIMAL(10, 2) DEFAULT 0.00,
+    total_earnings DECIMAL(10, 2) DEFAULT 0.00,
+    hourly_rate DECIMAL(10, 2) DEFAULT 0.00,
+    regular_hours DECIMAL(6, 2) DEFAULT 0.00,
+    ot_rate DECIMAL(10, 2) DEFAULT 0.00,
+    ot_hours DECIMAL(6, 2) DEFAULT 0.00,
+    net_salary DECIMAL(10, 2) DEFAULT 0.00,
+    adp_amount DECIMAL(10, 2) DEFAULT 0.00,
+    check_amount DECIMAL(10, 2) DEFAULT 0.00,
+    token VARCHAR(100) UNIQUE,
+    is_viewed TINYINT(1) DEFAULT 0,
+    viewed_at DATETIME NULL,
+    is_used TINYINT(1) DEFAULT 0,
+    signature_text VARCHAR(150) NULL,
+    signed_at DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    INDEX idx_ntid (ntid),
+    INDEX idx_token (token),
+    CONSTRAINT fk_user_payslip_user_id
+        FOREIGN KEY (user_id) 
+        REFERENCES users(id) 
+        ON DELETE CASCADE 
+        ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
