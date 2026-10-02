@@ -4,16 +4,16 @@ import secrets
 import math
 from datetime import datetime
 
-from fastapi import FastAPI, Depends, HTTPException, Request
-from fastapi import UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, status
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 
-# Added BigInteger, ForeignKey, and relationship for the new FK mapping
-from sqlalchemy import create_engine, Column, Integer, BigInteger, String, Date, Boolean, DateTime, Numeric, desc, ForeignKey
+from sqlalchemy import (
+    create_engine, Column, Integer, BigInteger, String, Date, 
+    Boolean, DateTime, Numeric, desc, ForeignKey
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 
@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # -------------------------------------------------------------
-# 1. DATABASE CONFIGURATION (AWS RDS MySQL)
+# 1. DATABASE & ENVIRONMENT CONFIGURATION
 # -------------------------------------------------------------
 DB_USER = os.environ.get("DB_USER")
 DB_PASS = os.environ.get("DB_PASS")
@@ -36,29 +36,44 @@ missing_db_vars = [name for name, val in [
 if missing_db_vars:
     raise RuntimeError(
         f"Missing required DB env vars: {', '.join(missing_db_vars)}. "
-        f"Set them in .env or your environment — refusing to start with "
-        f"hardcoded/default credentials."
+        f"Set them in .env — refusing to start."
     )
 
-ADMIN_USER = os.environ.get("ADMIN_USER")
-ADMIN_PASS = os.environ.get("ADMIN_PASS")
-if not ADMIN_USER or not ADMIN_PASS:
-    raise RuntimeError(
-        "Missing ADMIN_USER / ADMIN_PASS env vars. These protect /admin, "
-        "the admin dashboard API, and the upload endpoint. Set them before "
-        "starting the app."
-    )
+# Dual-Role Credentials (Developer & Admin)
+DEV_USER = os.environ.get("DEV_USER", "dev_admin")
+DEV_PASS = os.environ.get("DEV_PASS", "dev_secret_pass")
+
+ADMIN_USER = os.environ.get("ADMIN_USER", "hr_admin")
+ADMIN_PASS = os.environ.get("ADMIN_PASS", "admin_secret_pass")
 
 security = HTTPBasic()
 
-
-def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_user = secrets.compare_digest(credentials.username, ADMIN_USER)
-    correct_pass = secrets.compare_digest(credentials.password, ADMIN_PASS)
-    if not (correct_user and correct_pass):
+# Access Control Guards
+def verify_dev_access(credentials: HTTPBasicCredentials = Depends(security)):
+    is_dev_user = secrets.compare_digest(credentials.username, DEV_USER)
+    is_dev_pass = secrets.compare_digest(credentials.password, DEV_PASS)
+    if not (is_dev_user and is_dev_pass):
         raise HTTPException(
-            status_code=401,
-            detail="Invalid admin credentials",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Developer Access Denied: Invalid Developer Credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
+
+
+def verify_admin_access(credentials: HTTPBasicCredentials = Depends(security)):
+    is_admin = (
+        secrets.compare_digest(credentials.username, ADMIN_USER) and 
+        secrets.compare_digest(credentials.password, ADMIN_PASS)
+    )
+    is_dev = (
+        secrets.compare_digest(credentials.username, DEV_USER) and 
+        secrets.compare_digest(credentials.password, DEV_PASS)
+    )
+    if not (is_admin or is_dev):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin Access Denied: Invalid Credentials",
             headers={"WWW-Authenticate": "Basic"},
         )
     return credentials.username
@@ -86,14 +101,12 @@ class User(Base):
     full_name = Column(String(255))
     phone = Column(String(255))
 
+
 class UserPayslip(Base):
     __tablename__ = "user_payslip"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    
-    # Matches users.id (bigint)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    
     market = Column(String(50))
     ntid = Column(String(100), nullable=False, index=True)
     employee_name = Column(String(100), nullable=False)
@@ -118,7 +131,6 @@ class UserPayslip(Base):
     adp_amount = Column(Numeric(10, 2), default=0.00)
     check_amount = Column(Numeric(10, 2), default=0.00)
 
-    # Audit & Status Fields
     token = Column(String(100), unique=True, index=True)
     is_viewed = Column(Boolean, default=False)
     viewed_at = Column(DateTime, nullable=True)
@@ -133,10 +145,6 @@ class UserPayslip(Base):
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Payslip Management System")
-
-os.makedirs("generated_pdfs", exist_ok=True)
-app.mount("/generated_pdfs", StaticFiles(directory="generated_pdfs"), name="generated_pdfs")
-
 jinja_env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -175,19 +183,42 @@ def clean_int(value):
         return None
 
 
-def sanitize_for_filename(value: str) -> str:
-    value = str(value or "unknown")
-    return re.sub(r'[^A-Za-z0-9_-]', '_', value)[:50]
+# -------------------------------------------------------------
+# 3. LOGIN & PORTAL ROUTING
+# -------------------------------------------------------------
+@app.get("/login", response_class=HTMLResponse)
+async def serve_login_page(request: Request):
+    template = jinja_env.get_template("login.html")
+    return HTMLResponse(content=template.render())
+
+
+# Access Point A: Admin Dashboard
+@app.get("/admin", response_class=HTMLResponse)
+async def serve_admin_dashboard(request: Request, _user: str = Depends(verify_admin_access)):
+    template = jinja_env.get_template("admin_dashboard.html")
+    return HTMLResponse(content=template.render())
+
+
+# Access Point B: Developer Control Panel (Dev Only)
+@app.get("/dev/dashboard")
+async def serve_dev_dashboard(user: str = Depends(verify_dev_access)):
+    return {
+        "portal": "Developer Console & System Debugger",
+        "logged_in_as": user,
+        "system_status": "Healthy",
+        "db_connection": "Active",
+        "allowed_actions": ["Read Raw System Metrics", "Audit Logs", "DB Query Execution"]
+    }
 
 
 # -------------------------------------------------------------
-# 3. API: Bulk Excel Processing & Link Generation
+# 4. API: BULK EXCEL PROCESSING (ADMIN & DEV)
 # -------------------------------------------------------------
 @app.post("/api/v1/upload-payslips")
 async def upload_payslips(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _admin: str = Depends(verify_admin),
+    _user: str = Depends(verify_admin_access),
 ):
     if not file.filename.lower().endswith(ALLOWED_UPLOAD_EXTENSIONS):
         raise HTTPException(
@@ -249,15 +280,13 @@ async def upload_payslips(
             if not ntid_val or ntid_val.lower() in ['nan', 'none', '']:
                 continue
 
-            # Check if the user exists in the primary 'users' table
-            # Based on earlier setup where Excel's NTID column maps to users.email
             user_rec = db.query(User).filter(User.email == ntid_val).first()
             if not user_rec:
                 skipped_count += 1
-                continue # Skip uploading a payslip if there's no matching user
+                continue
 
             field_values = dict(
-                user_id=user_rec.id, # Map to the fetched BigInteger ID
+                user_id=user_rec.id,
                 market=str(row.get('market')) if row.get('market') else None,
                 employee_name=str(row.get('employee_name')),
                 designation=str(row.get('designation')) if row.get('designation') else None,
@@ -280,7 +309,7 @@ async def upload_payslips(
 
             existing = (
                 db.query(UserPayslip)
-                .filter(UserPayslip.ntid == ntid_val, UserPayslip.is_used == False)  # noqa: E712
+                .filter(UserPayslip.ntid == ntid_val, UserPayslip.is_used == False)
                 .first()
             )
 
@@ -318,7 +347,7 @@ async def upload_payslips(
             "status": "success",
             "records_inserted": inserted_count,
             "records_updated": updated_count,
-            "records_skipped": skipped_count, # Added skipped count so admin knows if any emails didn't exist
+            "records_skipped": skipped_count,
             "links": generated_links
         }
 
@@ -332,7 +361,7 @@ async def upload_payslips(
 
 
 # -------------------------------------------------------------
-# 4. EMPLOYEE VIEW ROUTE
+# 5. EMPLOYEE & ADMIN VIEW ROUTES
 # -------------------------------------------------------------
 @app.get("/payslip/view/{token}", response_class=HTMLResponse)
 async def view_payslip(token: str, request: Request, db: Session = Depends(get_db)):
@@ -363,7 +392,7 @@ async def view_payslip(token: str, request: Request, db: Session = Depends(get_d
 async def admin_view_payslip(
     payslip_id: int,
     db: Session = Depends(get_db),
-    _admin: str = Depends(verify_admin),
+    _user: str = Depends(verify_admin_access),
 ):
     payslip = db.query(UserPayslip).filter(UserPayslip.id == payslip_id).first()
     if not payslip:
@@ -393,11 +422,12 @@ async def mark_viewed(token: str, db: Session = Depends(get_db)):
 
 
 # -------------------------------------------------------------
-# 5. API: Submit Signature & Generate Stamped PDF
+# 6. SIGNATURE SUBMISSION (WITHOUT LOCAL PDF DISK SAVE)
 # -------------------------------------------------------------
 class SignPayload(BaseModel):
     token: str
     signature_name: str
+
 
 @app.post("/api/v1/payslip/sign")
 async def sign_payslip(payload: SignPayload, db: Session = Depends(get_db)):
@@ -418,46 +448,18 @@ async def sign_payslip(payload: SignPayload, db: Session = Depends(get_db)):
     payslip.is_used = True
     db.commit()
 
-    file_timestamp = now.strftime("%d%b%Y_%I%M%p")
-    safe_ntid = sanitize_for_filename(payslip.ntid)
-    pdf_filename = f"{safe_ntid}_signed_{file_timestamp}.pdf"
-    pdf_path = os.path.join("generated_pdfs", pdf_filename)
-
-    template = jinja_env.get_template("paystub.html")
-    rendered_html = template.render(
-        payslip=payslip,
-        current_date=now.strftime("%b %d, %Y")
-    )
-
-    pdf_generated = False
-    pdf_error = None
-    try:
-        from xhtml2pdf import pisa
-        with open(pdf_path, "wb") as pdf_file:
-            pisa_status = pisa.CreatePDF(rendered_html, dest=pdf_file)
-        if pisa_status.err:
-            pdf_error = f"xhtml2pdf reported {pisa_status.err} error(s)"
-        else:
-            pdf_generated = True
-    except Exception as e:
-        pdf_error = str(e)
-
-    if not pdf_generated and pdf_error:
-        print(f"PDF generation error for token {token}: {pdf_error}")
-
     return {
         "status": "success",
-        "message": "Payslip acknowledged and signed successfully. Link is now locked.",
-        "pdf_generated": pdf_generated,
-        "pdf_file": pdf_filename if pdf_generated else None,
+        "message": "Payslip acknowledged and signed successfully. Record locked in database.",
+        "pdf_generated": False
     }
 
 
 # -------------------------------------------------------------
-# 6. ADMIN DASHBOARD API
+# 7. ADMIN DASHBOARD API
 # -------------------------------------------------------------
 @app.get("/api/v1/admin/dashboard")
-async def get_admin_dashboard(db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
+async def get_admin_dashboard(db: Session = Depends(get_db), _user: str = Depends(verify_admin_access)):
     records = db.query(UserPayslip).order_by(desc(UserPayslip.id)).all()
 
     total = len(records)
@@ -496,12 +498,3 @@ async def get_admin_dashboard(db: Session = Depends(get_db), _admin: str = Depen
         },
         "records": data
     }
-
-
-# -------------------------------------------------------------
-# ADMIN DASHBOARD WEB ROUTE
-# -------------------------------------------------------------
-@app.get("/admin", response_class=HTMLResponse)
-async def serve_admin_dashboard(request: Request, _admin: str = Depends(verify_admin)):
-    template = jinja_env.get_template("admin_dashboard.html")
-    return HTMLResponse(content=template.render())

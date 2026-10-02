@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Access Login | Payslip Management</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            background: #ffffff;
+        }
+        .login-header {
+            background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+            color: #ffffff;
+            border-radius: 12px 12px 0 0;
+            padding: 25px 20px;
+            text-align: center;
+        }
+        .btn-role {
+            border: 1px solid #ced4da;
+            color: #495057;
+            background-color: #f8f9fa;
+        }
+        .btn-check:checked + .btn-role {
+            background-color: #0d6efd;
+            color: #ffffff;
+            border-color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-card card">
+    <div class="login-header">
+        <h4 class="m-0 fw-bold">Payslip System</h4>
+        <small class="opacity-75">Secure Portal Access</small>
+    </div>
+    
+    <div class="card-body p-4">
+        <form id="loginForm">
+            <!-- Role Selection Switch -->
+            <div class="mb-4 text-center">
+                <label class="form-label d-block fw-semibold text-secondary small mb-2">SELECT PORTAL TYPE</label>
+                <div class="btn-group w-100" role="group">
+                    <input type="radio" class="btn-check" name="userRole" id="roleAdmin" value="admin" checked>
+                    <label class="btn btn-role py-2 fw-semibold" for="roleAdmin">HR / Admin</label>
+
+                    <input type="radio" class="btn-check" name="userRole" id="roleDev" value="dev">
+                    <label class="btn btn-role py-2 fw-semibold" for="roleDev">Developer Console</label>
+                </div>
+            </div>
+
+            <!-- Username Field -->
+            <div class="mb-3">
+                <label for="username" class="form-label fw-semibold text-secondary small">USERNAME</label>
+                <input type="text" class="form-control" id="username" placeholder="Enter username" required autocomplete="username">
+            </div>
+
+            <!-- Password Field -->
+            <div class="mb-4">
+                <label for="password" class="form-label fw-semibold text-secondary small">PASSWORD</label>
+                <input type="password" class="form-control" id="password" placeholder="Enter password" required autocomplete="current-password">
+            </div>
+
+            <!-- Error Notification Alert -->
+            <div id="alertBox" class="alert alert-danger d-none py-2 px-3 small" role="alert"></div>
+
+            <!-- Submit Button -->
+            <button type="submit" id="loginBtn" class="btn btn-primary w-100 py-2 fw-bold">
+                Log In
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const usernameInput = document.getElementById('username').value.trim();
+    const passwordInput = document.getElementById('password').value.trim();
+    const selectedRole = document.querySelector('input[name="userRole"]:checked').value;
+    const alertBox = document.getElementById('alertBox');
+    const loginBtn = document.getElementById('loginBtn');
+
+    alertBox.classList.add('d-none');
+    loginBtn.disabled = true;
+    loginBtn.innerText = "Authenticating...";
+
+    // Determine target verification URL based on role choice
+    const targetUrl = selectedRole === 'dev' ? '/dev/dashboard' : '/admin';
+
+    // Encode Basic Auth Credentials
+    const credentials = btoa(`${usernameInput}:${passwordInput}`);
+
+    try {
+        const response = await fetch(targetUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Basic ${credentials}`
+            }
+        });
+
+        if (response.ok) {
+            // Store credentials temporarily for dashboard requests if required
+            sessionStorage.setItem('auth_credentials', credentials);
+            sessionStorage.setItem('user_role', selectedRole);
+
+            // Redirect user to their respective dashboard
+            window.location.href = targetUrl;
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            alertBox.innerText = errorData.detail || "Invalid Username or Password for selected portal.";
+            alertBox.classList.remove('d-none');
+            loginBtn.disabled = false;
+            loginBtn.innerText = "Log In";
+        }
+    } catch (err) {
+        alertBox.innerText = "Network error. Please try again.";
+        alertBox.classList.remove('d-none');
+        loginBtn.disabled = false;
+        loginBtn.innerText = "Log In";
+    }
+});
+</script>
+
+</body>
+</html>
