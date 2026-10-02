@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 
 from sqlalchemy import (
-    create_engine, Column, Integer, BigInteger, String, Date, 
+    create_engine, Column, Integer, BigInteger, String, 
     Boolean, DateTime, Numeric, desc, ForeignKey
 )
 from sqlalchemy.ext.declarative import declarative_base
@@ -113,10 +113,11 @@ class UserPayslip(Base):
     designation = Column(String(100))
     weekly_days = Column(Integer)
     payroll_days = Column(Integer)
-    attendance_cycle_start = Column(Date)
-    attendance_cycle_end = Column(Date)
-    pay_cycle_start = Column(Date)
-    pay_cycle_end = Column(Date)
+
+    # As-Is String Columns for Excel Cycles
+    attendance_cycle = Column(String(100), nullable=True)
+    pay_cycle = Column(String(100), nullable=True)
+
     total_working_days = Column(Integer)
     base_salary = Column(Numeric(10, 2), default=0.00)
     commission = Column(Numeric(10, 2), default=0.00)
@@ -285,13 +286,22 @@ async def upload_payslips(
                 skipped_count += 1
                 continue
 
+            # Extract exact string values from Excel
+            att_cycle_val = str(row.get('attendance_cycle')).strip() if row.get('attendance_cycle') and str(row.get('attendance_cycle')).lower() != 'nan' else None
+            pay_cycle_val = str(row.get('pay_cycle')).strip() if row.get('pay_cycle') and str(row.get('pay_cycle')).lower() != 'nan' else None
+
             field_values = dict(
                 user_id=user_rec.id,
-                market=str(row.get('market')) if row.get('market') else None,
+                market=str(row.get('market')) if row.get('market') and str(row.get('market')).lower() != 'nan' else None,
                 employee_name=str(row.get('employee_name')),
-                designation=str(row.get('designation')) if row.get('designation') else None,
+                designation=str(row.get('designation')) if row.get('designation') and str(row.get('designation')).lower() != 'nan' else None,
                 weekly_days=clean_int(row.get('weekly_days')),
                 payroll_days=clean_int(row.get('payroll_days')),
+                
+                # Dynamic direct string mapping
+                attendance_cycle=att_cycle_val,
+                pay_cycle=pay_cycle_val,
+
                 base_salary=clean_num(row.get('base_salary', 0.00)),
                 commission=clean_num(row.get('commission', 0.00)),
                 bonus=clean_num(row.get('bonus', 0.00)),
@@ -477,6 +487,7 @@ async def get_admin_dashboard(db: Session = Depends(get_db), _user: str = Depend
 
         data.append({
             "id": r.id,
+            "pay_cycle": r.pay_cycle or "-",  # Pay Cycle added for display
             "ntid": r.ntid,
             "employee_name": r.employee_name,
             "market": r.market,

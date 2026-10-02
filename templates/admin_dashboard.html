@@ -86,7 +86,7 @@
             <table class="table table-hover align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>ID</th>
+                        <th>Pay Cycle</th>
                         <th>NTID</th>
                         <th>Employee Name</th>
                         <th>Market</th>
@@ -155,7 +155,7 @@ async function loadDashboardData() {
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${escapeHtml(r.id)}</td>
+                <td class="fw-bold text-nowrap">${escapeHtml(r.pay_cycle || '-')}</td>
                 <td class="fw-bold">${escapeHtml(r.ntid)}</td>
                 <td>${escapeHtml(r.employee_name)}</td>
                 <td>${escapeHtml(r.market || '-')}</td>
